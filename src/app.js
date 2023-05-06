@@ -261,8 +261,8 @@ io.on("connection", (socket) => {
             if (rooms[i].room == data.room) {
                 for (player of rooms[i].players) {
                     if (player.id === socket.id) {
-                        player.word = data.word
-                        rooms[i].words.push(data.word)
+                        player.word = data.word.toLowerCase(); // convert to lowercase
+                        rooms[i].words.push(player.word);
                     }
                 }
             }
@@ -289,7 +289,7 @@ io.on("connection", (socket) => {
                         console.log(wordToGuess, ' is the word to guess');
                         try {
                             const hint = await synonyms(wordToGuess);
-                            console.log('server side hint', hint);
+                            // show hints console.log('hint: ', hint); 
                             io.to(player.id).emit('word_to_guess', wordToGuess.length)
                             io.to(player.id).emit('hint', hint) //sends hint to client
                         } catch (error) {
@@ -305,20 +305,29 @@ io.on("connection", (socket) => {
 
     const synonyms = (word) => {
         return new Promise((resolve, reject) => {
+            /* sending general words similar to secret word - better hints */
             datamuse.words({
-                rel_syn: word,
+                rel_gen: word,
                 max: 2,
             })
                 .then((synonyms) => {
+                    /* if general word api call is empty, check synonym api */
+                    if (synonyms.length === 0) {
+                        return datamuse.words({
+                            rel_syn: word,
+                            max: 2,
+                        })
+                            .then((synonyms) => {
+                                const hint = `${synonyms.map((s) => s.word).join(', ')}`;
+                                resolve(hint);
+                            })
+                    }
                     const hint = `${synonyms.map((s) => s.word).join(', ')}`;
                     resolve(hint);
                 })
-                .catch((error) => {
-                    console.error(error.message);
-                    reject(error.message);
-                });
-        });
-    };
+        })
+    }
+
 
     socket.on('time_off',data => {
         for (const room of rooms) {
